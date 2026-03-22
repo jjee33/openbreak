@@ -1,0 +1,53 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openbreak
+  namespace: openbreak
+  labels:
+    app.kubernetes.io/name: openbreak
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`openbreak.pro`)
+      kind: Rule
+      services:
+        - name: openbreak
+          port: 3000
+      middlewares:
+        - name: openbreak-headers
+  tls:
+    secretName: openbreak-tls
+    domains:
+      - main: openbreak.pro
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: openbreak-headers
+  namespace: openbreak
+spec:
+  headers:
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    forceSTSHeader: true
+    contentTypeNosniff: true
+    frameDeny: true
+    browserXssFilter: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openbreak-tls
+  namespace: openbreak
+spec:
+  secretName: openbreak-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - openbreak.pro

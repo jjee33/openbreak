@@ -48,3 +48,9 @@ Multi-tenant: one organization per venue. Free for all orgs.
 - Dark mode first (Tailwind dark: prefix)
 - Mobile-first responsive
 - Custom SVG bracket renderer — no third-party bracket libs
+
+## Claude Code Skills
+Skills are in .claude/skills/ — reference them by folder name when needed.
+- kubernetes-*, terraform-*, helm-* — use during Phase 5 K8s deployment
+- systematic-debugging, test-driven-development — use during feature development
+- verification-before-completion — run before any PR or deploy

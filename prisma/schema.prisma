@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,256 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  MEMBER
+}
+
+enum OrgMemberRole {
+  ADMIN
+  STAFF
+}
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+}
+
+enum TeamType {
+  INDIVIDUAL
+  PAIRS
+}
+
+enum GameType {
+  EIGHT_BALL
+  NINE_BALL
+  TEN_BALL
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  name          String?
+  role          UserRole  @default(MEMBER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orgMemberships OrgMember[]
+  claimedPlayer  Player?     @relation("ClaimedBy")
+  accounts       Account[]
+  sessions       Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================
+// ORGANIZATIONS
+// ============================================================
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  contactEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members     OrgMember[]
+  tournaments Tournament[]
+  players     Player[]
+
+  @@map("organizations")
+}
+
+model OrgMember {
+  id   String        @id @default(cuid())
+  role OrgMemberRole @default(STAFF)
+
+  userId String
+  orgId  String
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@map("org_members")
+}
+
+// ============================================================
+// PLAYERS
+// ============================================================
+
+model Player {
+  id          String   @id @default(cuid())
+  displayName String
+  createdAt   DateTime @default(now())
+
+  orgId           String
+  claimedByUserId String? @unique
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  claimedBy   User?        @relation("ClaimedBy", fields: [claimedByUserId], references: [id])
+  teamMembers TeamMember[]
+  matchesAsP1 Match[]      @relation("Player1")
+  matchesAsP2 Match[]      @relation("Player2")
+  matchWins   Match[]      @relation("MatchWinner")
+
+  @@map("players")
+}
+
+// ============================================================
+// TOURNAMENTS
+// ============================================================
+
+model Tournament {
+  id        String           @id @default(cuid())
+  name      String
+  format    TournamentFormat
+  teamType  TeamType         @default(INDIVIDUAL)
+  gameType  GameType         @default(EIGHT_BALL)
+  status    TournamentStatus @default(DRAFT)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  teams   Team[]
+  matches Match[]
+
+  @@map("tournaments")
+}
+
+// ============================================================
+// TEAMS
+// ============================================================
+
+model Team {
+  id   String @id @default(cuid())
+  name String
+  seed Int?
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  members     TeamMember[]
+  matchesAsT1 Match[]      @relation("Team1")
+  matchesAsT2 Match[]      @relation("Team2")
+  matchWins   Match[]      @relation("TeamWinner")
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String @id @default(cuid())
+  teamId   String
+  playerId String
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+  @@map("team_members")
+}
+
+// ============================================================
+// MATCHES
+// ============================================================
+
+model Match {
+  id          String    @id @default(cuid())
+  round       Int
+  matchNumber Int
+  bracketSlot String?
+  score1      Int?
+  score2      Int?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  player1Id    String?
+  player2Id    String?
+  winnerId     String?
+  player1      Player? @relation("Player1", fields: [player1Id], references: [id])
+  player2      Player? @relation("Player2", fields: [player2Id], references: [id])
+  winnerPlayer Player? @relation("MatchWinner", fields: [winnerId], references: [id])
+
+  team1Id      String?
+  team2Id      String?
+  winnerTeamId String?
+  team1        Team? @relation("Team1", fields: [team1Id], references: [id])
+  team2        Team? @relation("Team2", fields: [team2Id], references: [id])
+  winnerTeam   Team? @relation("TeamWinner", fields: [winnerTeamId], references: [id])
+
+  @@map("matches")
 }

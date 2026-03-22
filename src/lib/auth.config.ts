@@ -19,8 +19,8 @@ export const authConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as any).role
-        token.orgId = (user as any).orgId
+        token.role = user.role
+        token.orgId = user.orgId
       }
       return token
     },
